@@ -34,6 +34,11 @@ pub trait InputBuf {
         Ok(data)
     }
 
+    fn read_to_end(&mut self) -> Vec<u8> {
+        let len = self.left();
+        self.read_vec(len).unwrap()
+    }
+
     fn read_array<const N: usize>(&mut self) -> Result<[u8; N], CheckError> {
         if self.left() < N {
             return Err(CheckError::NoEnoughData);
