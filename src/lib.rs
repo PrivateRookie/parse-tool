@@ -23,8 +23,26 @@ macro_rules! impl_check {
 pub trait InputBuf {
     fn left(&self) -> usize;
     fn slice(&self) -> &[u8];
-    fn read_array<const N: usize>(&mut self) -> Result<[u8; N], CheckError>;
     fn jump_to(&mut self, pos: usize) -> Result<(), CheckError>;
+
+    fn read_vec(&mut self, count: usize) -> Result<Vec<u8>, CheckError> {
+        if self.left() < count {
+            return Err(CheckError::NoEnoughData);
+        }
+        let data: Vec<u8> = self.slice()[..count].to_vec();
+        self.jump_to(count)?;
+        Ok(data)
+    }
+
+    fn read_array<const N: usize>(&mut self) -> Result<[u8; N], CheckError> {
+        if self.left() < N {
+            return Err(CheckError::NoEnoughData);
+        }
+        let mut arr: [u8; N] = [0; N];
+        arr.copy_from_slice(&self.slice()[..N]);
+        self.jump_to(N)?;
+        Ok(arr)
+    }
 
     impl_check!(u8, [u8; 1] => read_u8_be: from_be_bytes, read_u8_le: from_le_bytes, read_u8_ne: from_ne_bytes);
     impl_check!(u16, [u8; 2] => read_u16_be: from_be_bytes, read_u16_le: from_le_bytes, read_u16_ne: from_ne_bytes);
@@ -51,6 +69,10 @@ impl<T: InputBuf, U> InputBuf for (T, U) {
 
     fn read_array<const N: usize>(&mut self) -> Result<[u8; N], CheckError> {
         self.0.read_array()
+    }
+
+    fn read_vec(&mut self, count: usize) -> Result<Vec<u8>, CheckError> {
+        self.0.read_vec(count)
     }
 
     fn jump_to(&mut self, pos: usize) -> Result<(), CheckError> {
@@ -85,16 +107,6 @@ impl InputBuf for &[u8] {
         self
     }
 
-    fn read_array<const N: usize>(&mut self) -> Result<[u8; N], CheckError> {
-        if self.left() < N {
-            return Err(CheckError::NoEnoughData);
-        }
-        let mut arr: [u8; N] = [0; N];
-        arr.copy_from_slice(&self.slice()[..N]);
-        *self = &self[N..];
-        Ok(arr)
-    }
-
     fn jump_to(&mut self, pos: usize) -> Result<(), CheckError> {
         if self.len() < pos {
             return Err(CheckError::NoEnoughData);
@@ -118,16 +130,6 @@ mod impl_bytes {
             self.chunk()
         }
 
-        fn read_array<const N: usize>(&mut self) -> Result<[u8; N], CheckError> {
-            if self.left() < N {
-                return Err(CheckError::NoEnoughData);
-            }
-            let buf = self.split_to(N);
-            let mut arr = [0u8; N];
-            arr.copy_from_slice(&buf);
-            Ok(arr)
-        }
-
         fn jump_to(&mut self, pos: usize) -> Result<(), CheckError> {
             if self.remaining() < pos {
                 return Err(CheckError::NoEnoughData);
@@ -144,16 +146,6 @@ mod impl_bytes {
 
         fn slice(&self) -> &[u8] {
             self.chunk()
-        }
-
-        fn read_array<const N: usize>(&mut self) -> Result<[u8; N], CheckError> {
-            if self.left() < N {
-                return Err(CheckError::NoEnoughData);
-            }
-            let buf = self.split_to(N);
-            let mut arr = [0u8; N];
-            arr.copy_from_slice(&buf);
-            Ok(arr)
         }
 
         fn jump_to(&mut self, pos: usize) -> Result<(), CheckError> {
